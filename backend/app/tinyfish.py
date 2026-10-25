@@ -6,6 +6,7 @@ Fallback to local doctor profiles if TinyFish unavailable.
 import os
 import asyncio
 import logging
+import pandas as pd
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 from app.schemas import DoctorSlot, TeleconsultResponse
