@@ -5,6 +5,7 @@ Runs FIRST on every turn. ESCALATE IF EITHER RULE-BASED OR ML FIRES.
 """
 import re
 from typing import List, Set, Tuple
+import pandas as pd
 from app.utils import normalize_text, transliterate_if_needed, expand_hinglish, contains_negation
 from app.schemas import RedFlag
 from app.data_loader import CARE_TAXONOMY
@@ -68,11 +69,11 @@ RED_FLAG_LEXICON = {
     ],
     RedFlag.SEIZURE: [
         # English
-        "seizure", "convulsion", "fit", "fits", "shaking uncontrollably",
+        "seizure", "convulsion", "had a fit", "having a fit", "fits aaye", "shaking uncontrollably",
         "jerking", "epilepsy", "tonic clonic",
         # Hinglish
-        "daura", "mirgi", "daura pada", "fits aaye", "jhatke", "akadna",
-        "sharir akadna", " hath pair chaln a",
+        "daura", "mirgi", "daura pada", "jhatke", "akadna",
+        "sharir akadna",
         # Devanagari
         "daura", "mirgi", "jhatke",
     ],
@@ -92,9 +93,9 @@ RED_FLAG_LEXICON = {
         "jeena nahi chahte", "aatmahatya", "self harm",
     ],
     RedFlag.SEVERE_DEHYDRATION: [
-        "severe dehydration", "dehydrated", "no urine", "not urinating",
-        "sunken eyes", "lethargic", "very weak", "can't keep fluids",
-        "pani ki kami", "dehydration", "peshab nahi aa raha",
+        "severe dehydration", "no urine", "not urinating",
+        "sunken eyes", "can't keep fluids", "cannot keep fluids",
+        "peshab nahi aa raha",
     ],
 }
 
@@ -122,12 +123,13 @@ def detect_red_flags_rule_based(text: str) -> List[RedFlag]:
     triggered = []
     for flag, patterns in _COMPILED_PATTERNS.items():
         for pattern in patterns:
-            if pattern.search(normalized):
-                # Check negation
-                match = pattern.search(normalized)
-                if match and not contains_negation(normalized, match.group()):
+            # Check every occurrence: one negated mention must not hide a real one
+            for match in pattern.finditer(normalized):
+                if not contains_negation(normalized, match.group(), match.start()):
                     triggered.append(flag)
-                    break  # One match per flag is enough
+                    break
+            if flag in triggered:
+                break  # One match per flag is enough
     return triggered
 
 # --- ML Second Opinion (LightGBM on top of TF-IDF) ---
@@ -220,7 +222,8 @@ def safety_gate(text: str, conversation_history: list = None) -> Tuple[List[RedF
     # Combine current input with recent history for context
     full_text = text
     if conversation_history:
-        recent = " ".join([msg.content for msg in conversation_history[-3:]])
+        user_msgs = [m for m in conversation_history if getattr(m.role, "value", m.role) == "user"]
+        recent = " ".join([msg.content for msg in user_msgs[-3:]])
         full_text = recent + " " + text
     
     # Rule-based (high recall)
