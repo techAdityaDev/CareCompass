@@ -5,7 +5,7 @@ CareCompass FastAPI Application - Main Entry Point
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 import logging
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.schemas import (
-    TriageRequest, TriageResponse, HealthResponse,
+    CareType, Urgency, TriageRequest, TriageResponse, HealthResponse,
     BookingRequest, BookingResponse,
     TeleconsultRequest, TeleconsultResponse,
     BatchPredictRequest, BatchPredictResponse
@@ -70,8 +70,6 @@ app.add_middleware(
 
 # Serve frontend static files in production
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
-if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
 # --- Health Check ---
 @app.get("/health", response_model=HealthResponse)
@@ -96,11 +94,12 @@ async def triage_endpoint(request: TriageRequest):
             })()
         
         # Module 0: Safety Gate (runs first, on full conversation)
-        conversation_text = request.user_input
-        if request.conversation_history:
-            conversation_text = " ".join([msg.content for msg in request.conversation_history] + [request.user_input])
+        # Only the USER's words go to the safety gate. The assistant's own follow-up
+        # questions ("any chest pain?") must never trigger a red flag.
+        user_history = [m for m in (request.conversation_history or []) if m.role.value == "user"]
+        conversation_text = " ".join([m.content for m in user_history] + [request.user_input])
         
-        red_flags, is_emergency, safety_reasoning = safety_gate(conversation_text, request.conversation_history)
+        red_flags, is_emergency, safety_reasoning = safety_gate(conversation_text, user_history)
         
         if is_emergency:
             return TriageResponse(
@@ -303,12 +302,8 @@ async def eval_triage():
         "test_size": len(test_df)
     }
 
-# --- Catch-all for SPA routing ---
-@app.get("/{full_path:path}")
-async def spa_fallback(full_path: str):
-    if frontend_dist.exists():
-        return FileResponse(frontend_dist / "index.html")
-    return {"message": "CareCompass API", "docs": "/docs"}
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
