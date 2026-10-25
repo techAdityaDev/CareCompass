@@ -1,5 +1,5 @@
 // frontend/src/components/ChatInterface.tsx
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { MessageBubble } from './MessageBubble';
 import { FollowUpCard } from './FollowUpCard';
 import { QuickActionTiles } from './QuickActionTiles';
@@ -12,9 +12,11 @@ interface ChatInterfaceProps {
   conversationHistory: Array<{role: 'user' | 'assistant', content: string}>;
   followUpCount: number;
   onUserInput: (input: string) => void;
-  onVoiceInput: () => void;
+  onVoiceInput: (transcript: string) => void;
   language: string;
   speechSupported: boolean;
+  loading: boolean;
+  error: string | null;
   t: (key: string) => string;
   textSize: number;
 }
@@ -27,6 +29,8 @@ export function ChatInterface({
   onVoiceInput,
   language,
   speechSupported,
+  loading,
+  error,
   t,
   textSize
 }: ChatInterfaceProps) {
@@ -69,6 +73,14 @@ export function ChatInterface({
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4" role="log" aria-live="polite">
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+            {t('connection_error')}: {error}. {t('retry_connection')}
+          </div>
+        )}
+        {loading && (
+          <p className="text-sm text-gray-500" role="status">{t('processing')}</p>
+        )}
         {showQuickActions && (
           <QuickActionTiles onAction={handleQuickAction} language={language} t={t} />
         )}
@@ -96,6 +108,7 @@ export function ChatInterface({
             ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            disabled={loading}
             placeholder={t('type_or_speak')}
             rows={1}
             className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none min-h-[56px]"
@@ -107,7 +120,7 @@ export function ChatInterface({
           )}
           <button
             type="submit"
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || loading}
             className="btn-primary px-6 py-3 min-h-[56px] flex items-center justify-center"
             aria-label={t('send')}
           >

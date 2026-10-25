@@ -11,7 +11,7 @@ interface EmergencyScreenProps {
   speak: (text: string, lang: string) => void;
 }
 
-export function EmergencyScreen({ response, onRestart, language, t, textSize, speak }: EmergencyScreenProps) {
+export function EmergencyScreen({ response, onRestart, language, t, speak }: EmergencyScreenProps) {
   useEffect(() => {
     // Auto-speak emergency instructions
     speak(t('emergency_auto_message'), language);

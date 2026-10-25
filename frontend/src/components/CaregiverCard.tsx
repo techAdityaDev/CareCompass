@@ -11,7 +11,7 @@ interface CaregiverCardProps {
   textSize: number;
 }
 
-export function CaregiverCard({ caregiver, rank, onBook, response, language, t, textSize }: CaregiverCardProps) {
+export function CaregiverCard({ caregiver, rank, onBook, response, t }: CaregiverCardProps) {
   const initials = caregiver.caregiver_id.split('_')[1] || 'CG';
   
   return (
