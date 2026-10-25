@@ -40,7 +40,7 @@ CareCompass implements a **four-stage pipeline** (Safety → Intake → Triage �
 | Triage (Care Type) | LightGBM + TF-IDF char n-grams | 5-class classification |
 | Triage (Urgency) | LightGBM + TF-IDF char n-grams | 3-class classification |
 | Text Normalization | `indic-transliteration`, `rapidfuzz`, custom synonym map | Hinglish/Hindi/English handling |
-| Doctor Consult | **TinyFish SDK** (`sk-tinyfish-EamTMDICU7h6PdFiRZP8fpFT6oYeXNya`) | Web agent for doctor slot discovery |
+| Doctor Consult | **TinyFish SDK** (key via `TINYFISH_API_KEY` env var) | Web agent for doctor slot discovery |
 | Speech Input | Browser **Web Speech API** (SpeechRecognition) | Voice-to-text (hi-IN/en-IN) |
 | Speech Output | Browser **SpeechSynthesis** | Text-to-voice (hi-IN/en-IN, 0.9x rate) |
 
