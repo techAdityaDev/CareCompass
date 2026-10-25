@@ -34,6 +34,7 @@ class ScoredCaregiver:
     name: str
     role: str
     score: float
+    reason: str
     reason_parts: Dict[str, float]
     distance_km: float
     languages: List[str]
@@ -180,6 +181,7 @@ def match_caregivers(
             name=cg["name"],
             role=cg["role"],
             score=round(total_score, 3),
+            reason=reason_str,
             reason_parts={
                 "language": lang_score,
                 "proximity": prox_score,
@@ -211,7 +213,7 @@ def match_caregivers(
 def evaluate_matching() -> dict:
     """Evaluate NDCG@3 against reference matches in training data."""
     from app.data_loader import load_training_data
-    from sklearn.metrics import ndcg_score
+    from math import log2
     import numpy as np
     
     df = load_training_data()
@@ -219,6 +221,7 @@ def evaluate_matching() -> dict:
     
     ndcg_scores = []
     top1_agreements = 0
+    evaluated_cases = 0
     
     for _, row in df_labeled.iterrows():
         if row["care_type"] == "emergency_112":
@@ -229,16 +232,22 @@ def evaluate_matching() -> dict:
         
         if not ref_ids:
             continue
+        evaluated_cases += 1
         
         pred = match_caregivers(care_type, row["lat"], row["lng"], row["detected_language"].lower(), top_k=3)
         pred_ids = [c.caregiver_id for c in pred]
         
         # NDCG@3
         relevance = [1.0 if pid in ref_ids else 0.0 for pid in pred_ids]
-        ideal = sorted(relevance, reverse=True)
-        if sum(ideal) > 0:
-            ndcg = ndcg_score([ideal], [relevance], k=3)
-            ndcg_scores.append(ndcg)
+        dcg = sum(
+            rel / log2(rank + 2)
+            for rank, rel in enumerate(relevance[:3])
+        )
+        ideal_dcg = sum(
+            1.0 / log2(rank + 2)
+            for rank in range(min(3, len(ref_ids)))
+        )
+        ndcg_scores.append(dcg / ideal_dcg if ideal_dcg else 0.0)
         
         # Top-1 agreement
         if pred_ids and pred_ids[0] in ref_ids:
@@ -246,6 +255,6 @@ def evaluate_matching() -> dict:
     
     return {
         "mean_ndcg_at_3": float(np.mean(ndcg_scores)) if ndcg_scores else 0.0,
-        "top1_agreement_rate": top1_agreements / len(df_labeled) if len(df_labeled) > 0 else 0.0,
-        "evaluated_cases": len(df_labeled)
+        "top1_agreement_rate": top1_agreements / evaluated_cases if evaluated_cases > 0 else 0.0,
+        "evaluated_cases": evaluated_cases
     }
