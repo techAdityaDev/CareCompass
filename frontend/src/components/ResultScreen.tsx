@@ -42,14 +42,14 @@ export function ResultScreen({ response, onBook, onTeleconsult, onRestart, langu
             <h2 className="text-xl font-bold text-gray-900">{t('care_recommendation')}</h2>
             <div className="flex flex-wrap gap-2 mt-3">
               <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-sm font-medium">
-                {t(careTypeLabels[response.care_type!] || response.care_type)}
+                {response.care_type ? t(careTypeLabels[response.care_type]) : ''}
               </span>
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                 response.urgency === Urgency.EMERGENCY ? 'bg-red-100 text-red-800' :
                 response.urgency === Urgency.SAME_DAY ? 'bg-orange-100 text-orange-800' :
                 'bg-green-100 text-green-800'
               }`}>
-                {t(urgencyLabels[response.urgency!] || response.urgency)}
+                {response.urgency ? t(urgencyLabels[response.urgency]) : ''}
               </span>
             </div>
           </div>

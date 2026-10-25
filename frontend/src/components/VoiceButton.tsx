@@ -1,7 +1,35 @@
 import { useState, useRef, useEffect } from 'react';
 
+interface SpeechResult {
+  isFinal: boolean;
+  0: { transcript: string };
+}
+
+interface SpeechResultEvent extends Event {
+  resultIndex: number;
+  results: ArrayLike<SpeechResult>;
+}
+
+interface SpeechErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: SpeechResultEvent) => void) | null;
+  onerror: ((event: SpeechErrorEvent) => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
 interface VoiceButtonProps {
-  onVoiceInput: () => void;
+  onVoiceInput: (transcript: string) => void;
   language: string;
   t: (key: string) => string;
 }
@@ -10,14 +38,16 @@ export function VoiceButton({ onVoiceInput, language, t }: VoiceButtonProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      return;
-    }
-    
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const SpeechRecognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
     recognitionRef.current = new SpeechRecognition();
     recognitionRef.current.continuous = false;
     recognitionRef.current.interimResults = true;
@@ -56,25 +86,10 @@ export function VoiceButton({ onVoiceInput, language, t }: VoiceButtonProps) {
   };
 
   const handleConfirm = (confirmed: boolean) => {
-    if (confirmed && transcript) {
-      // Parent will handle the actual input via onVoiceInput callback
-      // We need to expose the transcript somehow - for now, use a custom event
-      window.dispatchEvent(new CustomEvent('voice-transcript', { detail: transcript }));
-    }
+    if (confirmed && transcript) onVoiceInput(transcript);
     setShowConfirm(false);
     setTranscript('');
   };
-
-  // Listen for parent to request transcript
-  useEffect(() => {
-    const handler = (e: CustomEvent) => {
-      if (e.detail === 'get-transcript' && transcript) {
-        window.dispatchEvent(new CustomEvent('voice-transcript', { detail: transcript }));
-      }
-    };
-    window.addEventListener('voice-command', handler);
-    return () => window.removeEventListener('voice-command', handler);
-  }, [transcript]);
 
   if (showConfirm && transcript) {
     return (
