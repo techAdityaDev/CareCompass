@@ -1,7 +1,7 @@
 // frontend/src/hooks/useI18n.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 
-type Language = 'en' | 'hi' | 'hinglish';
+export type Language = 'en' | 'hi' | 'hinglish';
 
 const translations: Record<Language, Record<string, string>> = {
   en: {
@@ -56,6 +56,27 @@ const translations: Record<Language, Record<string, string>> = {
     emergency: 'Emergency',
     same_day: 'Same Day',
     scheduled: 'Scheduled',
+    quick_actions: 'Choose a starting point or describe what is happening.',
+    quick_fever: 'Fever or symptoms',
+    quick_nursing: 'Nursing at home',
+    quick_lab: 'Lab test',
+    quick_doctor: 'Talk to a doctor',
+    quick_emergency: 'Emergency',
+    intake_progress: 'Follow-up questions',
+    connection_error: 'Could not reach the care service',
+    retry_connection: 'Check that the backend is running and try again.',
+    processing: 'Checking your request…',
+    close: 'Close',
+    text_size: 'Text size',
+    confirm_booking: 'Confirm booking',
+    booking_confirmed: 'Booking confirmed',
+    booking_error: 'Could not complete the booking',
+    estimated_arrival: 'Estimated arrival',
+    booking_id: 'Booking ID',
+    done: 'Done',
+    local_network_notice: 'Showing local network doctors.',
+    view_profile: 'View profile',
+    no_doctors_found: 'No doctors are currently available.',
   },
   hi: {
     app_name: 'केयरकम्पास',

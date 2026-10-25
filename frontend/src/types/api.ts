@@ -1,12 +1,19 @@
 // frontend/src/types/api.ts
-export type CareType = 
-  | 'paramedic_home_visit'
-  | 'home_nursing'
-  | 'lab_test_home'
-  | 'teleconsultation'
-  | 'emergency_112';
+export const CareType = {
+  PARAMEDIC_HOME_VISIT: 'paramedic_home_visit',
+  HOME_NURSING: 'home_nursing',
+  LAB_TEST_HOME: 'lab_test_home',
+  TELECONSULTATION: 'teleconsultation',
+  EMERGENCY_112: 'emergency_112',
+} as const;
+export type CareType = (typeof CareType)[keyof typeof CareType];
 
-export type Urgency = 'emergency' | 'same_day' | 'scheduled';
+export const Urgency = {
+  EMERGENCY: 'emergency',
+  SAME_DAY: 'same_day',
+  SCHEDULED: 'scheduled',
+} as const;
+export type Urgency = (typeof Urgency)[keyof typeof Urgency];
 
 export type RedFlag = 
   | 'chest_pain'
