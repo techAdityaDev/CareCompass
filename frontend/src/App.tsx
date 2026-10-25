@@ -11,7 +11,8 @@ import { AccessibilityToggle } from './components/AccessibilityToggle';
 import { useTriage } from './hooks/useTriage';
 import { useI18n } from './hooks/useI18n';
 import { useSpeech } from './hooks/useSpeech';
-import { TriageResponse, CareType, Urgency, MatchedCaregiver } from './types/api';
+import { TriageResponse, CareType, MatchedCaregiver } from './types/api';
+import { Language } from './hooks/useI18n';
 import './index.css';
 
 type AppState = 
@@ -21,7 +22,7 @@ type AppState =
   | { stage: 'emergency'; response: TriageResponse }
   | { stage: 'result'; response: TriageResponse }
   | { stage: 'booking'; caregiver: MatchedCaregiver; response: TriageResponse }
-  | { stage: 'teleconsult'; response: TeleconsultResponse };
+  | { stage: 'teleconsult'; response: TeleconsultResponse; triageResponse: TriageResponse };
 
 interface TeleconsultResponse {
   doctors: Array<{ doctor_id: string; name: string; language: string; rating: number; next_slot: string; profile_url?: string }>;
@@ -64,8 +65,9 @@ function App() {
         conversation_history: conversationHistory.map(m => ({ role: m.role, content: m.content }))
       });
       
-      if (response.follow_up_question) {
-        setConversationHistory(prev => [...prev, { role: 'assistant', content: response.follow_up_question }]);
+      const followUpQuestion = response.follow_up_question;
+      if (followUpQuestion) {
+        setConversationHistory(prev => [...prev, { role: 'assistant', content: followUpQuestion }]);
         setFollowUpCount(prev => prev + 1);
         setAppState({ stage: 'chat', response });
       } else if (response.care_type === CareType.EMERGENCY_112) {
@@ -75,53 +77,33 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      // Fallback response
-      const fallbackResponse: TriageResponse = {
-        follow_up_question: null,
-        care_type: CareType.PARAMEDIC_HOME_VISIT,
-        urgency: Urgency.SAME_DAY,
-        red_flags: [],
-        reasoning: t('fallback_reasoning'),
-        matched_caregivers: []
-      };
-      setAppState({ stage: 'result', response: fallbackResponse });
+      setAppState({ stage: 'chat', response: null });
     }
-  }, [triage, conversationHistory, language, t]);
+  }, [triage, conversationHistory, language]);
 
-  const handleQuickAction = (service: string) => {
-    const prompts: Record<string, string> = {
-      fever: language === 'hi' ? 'बुखार है' : language === 'hinglish' ? 'bukhar hai' : 'I have fever',
-      injection: language === 'hi' ? 'इंजेक्शन लगवाना है' : language === 'hinglish' ? 'injection lagwana hai' : 'Need injection at home',
-      lab: language === 'hi' ? 'खून की जांच घर पर' : language === 'hinglish' ? 'blood test ghar pe' : 'Blood test at home',
-      doctor: language === 'hi' ? 'डॉक्टर से बात करनी है' : language === 'hinglish' ? 'doctor se baat karni hai' : 'Talk to a doctor',
-      emergency: language === 'hi' ? 'इमरजेंसी है' : language === 'hinglish' ? 'emergency hai' : 'Emergency',
-    };
-    handleUserInput(prompts[service] || prompts.fever);
-  };
-
-  const handleVoiceInput = useCallback(async () => {
-    if (!speechSupported) return;
-    // Handled by VoiceButton component
-  }, [speechSupported]);
+  const handleVoiceInput = useCallback((transcript: string) => {
+    void handleUserInput(transcript);
+  }, [handleUserInput]);
 
   const handleBook = (caregiver: MatchedCaregiver, response: TriageResponse) => {
     setAppState({ stage: 'booking', caregiver, response });
   };
 
-  const handleTeleconsult = async () => {
-    setAppState({ stage: 'teleconsult', response: { doctors: [], fallback_used: false, message: 'Loading...' } });
-    // In real app, call /api/v1/teleconsult
-    // For demo, show fallback doctors
-    const fallbackResponse: TeleconsultResponse = {
-      doctors: [
-        { doctor_id: 'CG_021', name: 'Dr. Rekha Gupta', language: 'Hindi, Tamil, Haryanvi', rating: 4.9, next_slot: 'Today 14:00 IST', profile_url: '#' },
-        { doctor_id: 'CG_012', name: 'Dr. Kavita Das', language: 'Hindi, English', rating: 4.8, next_slot: 'Today 15:00 IST', profile_url: '#' },
-        { doctor_id: 'CG_030', name: 'Dr. Pawan Singh', language: 'Hindi, Tamil, Bhojpuri', rating: 5.0, next_slot: 'Today 10:00 IST', profile_url: '#' },
-      ],
-      fallback_used: true,
-      message: 'Showing available doctors from local network'
-    };
-    setAppState({ stage: 'teleconsult', response: fallbackResponse });
+  const handleTeleconsult = async (triageResponse: TriageResponse) => {
+    const triageState = { stage: 'teleconsult' as const, triageResponse };
+    setAppState({ ...triageState, response: { doctors: [], fallback_used: false, message: t('processing') } });
+    try {
+      const response = await fetch('/api/v1/teleconsult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setAppState({ ...triageState, response: await response.json() as TeleconsultResponse });
+    } catch (consultError) {
+      console.error(consultError);
+      setAppState({ ...triageState, response: { doctors: [], fallback_used: false, message: t('connection_error') } });
+    }
   };
 
   const handleRestart = () => {
@@ -171,7 +153,7 @@ function App() {
               {['en', 'hi', 'hinglish'].map(lang => (
                 <button
                   key={lang}
-                  onClick={() => { setLanguage(lang as any); setAppState({ stage: 'chat', response: null }); }}
+                  onClick={() => { setLanguage(lang as Language); setAppState({ stage: 'chat', response: null }); }}
                   className={`p-6 rounded-xl border-2 transition-all ${
                     language === lang 
                       ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-200' 
@@ -202,6 +184,8 @@ function App() {
             followUpCount={followUpCount}
             onUserInput={handleUserInput}
             onVoiceInput={handleVoiceInput}
+            loading={loading}
+            error={error}
             language={language}
             speechSupported={speechSupported}
             t={t}
@@ -226,7 +210,7 @@ function App() {
           <ResultScreen
             response={appState.response}
             onBook={handleBook}
-            onTeleconsult={handleTeleconsult}
+            onTeleconsult={() => void handleTeleconsult(appState.response)}
             onRestart={handleRestart}
             language={language}
             t={t}
@@ -254,7 +238,7 @@ function App() {
             doctors={appState.response.doctors}
             fallbackUsed={appState.response.fallback_used}
             message={appState.response.message}
-            onBack={() => setAppState({ stage: 'result', response: appState.response })}
+            onBack={() => setAppState({ stage: 'result', response: appState.triageResponse })}
             onRestart={handleRestart}
             language={language}
             t={t}
