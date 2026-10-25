@@ -85,16 +85,30 @@ def expand_hinglish(text: str) -> str:
         text_lower = re.sub(rf"\b{re.escape(hinglish)}\b", canonical, text_lower)
     return text_lower
 
-def contains_negation(text: str, keyword: str) -> bool:
-    """Check if keyword appears in a negated context."""
-    # Simple window-based negation detection
+_CLAUSE_BREAK = re.compile(r"[,.;!?]|\b(but|lekin|magar|par|however|and now|ab)\b")
+
+def contains_negation(text: str, keyword: str, start: int = None) -> bool:
+    """Check if the keyword (at position `start`) appears in a negated context.
+
+    Looks only at the 50 chars before the keyword AND only inside the same clause,
+    so "bukhar nahi hai, seene mein dard hai" is not treated as negated chest pain.
+    """
     text_lower = text.lower()
     keyword_lower = keyword.lower()
-    idx = text_lower.find(keyword_lower)
-    if idx == -1:
+    idx = start if start is not None else text_lower.find(keyword_lower)
+    if idx is None or idx < 0:
         return False
-    # Check 50 chars before keyword
+    # Hinglish puts the negation AFTER the symptom: "seene mein dard nahi hai"
+    after = text_lower[idx + len(keyword_lower): idx + len(keyword_lower) + 30]
+    brk = _CLAUSE_BREAK.search(after)
+    if brk:
+        after = after[:brk.start()]
+    if re.match(r"\s*(?:\w+\s+){0,2}?(nahi|nahin|nhi|not)\b", after):
+        return True
     window = text_lower[max(0, idx-50):idx]
+    breaks = list(_CLAUSE_BREAK.finditer(window))
+    if breaks:
+        window = window[breaks[-1].end():]
     for pattern in NEGATION_PATTERNS:
         if re.search(pattern, window):
             return True
